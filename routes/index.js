@@ -1,22 +1,47 @@
+require('dotenv').config()
 const express = require('express');
 const router = express.Router();
 const {FusionAuthClient} = require('@fusionauth/typescript-client');
-const clientId = '85a03867-dccf-4882-adde-1a79aeec50df';
-const clientSecret = '7gh9U0O1wshsrVVvflccX-UL2zxxsYccjdw8_rOfsfE';
-const client = new FusionAuthClient('noapikeyneeded', 'http://localhost:9011');
+const clientId = process.env.CLIENT_ID
+const clientSecret = process.env.CLIENT_SECRET
+const client = new FusionAuthClient((process.env.FUSION_AUTH_API_KEY), 'http://localhost:9011');
 const pkceChallenge = require('pkce-challenge');
+const bodyParser = require('body-parser');
+
+router.use(bodyParser.json());
 
 /* GET home page. */
 router.get('/', function (req, res, next) {
-  const stateValue = Math.random().toString(36).substring(2, 15) + Math.random().toString(36).substring(2, 15) + Math.random().toString(36).substring(2, 15) + Math.random().toString(36).substring(2, 15) + Math.random().toString(36).substring(2, 15) + Math.random().toString(36).substring(2, 15);
+  const stateValue = (Math.random().toString(36).substring(2, 15) 
+                      + Math.random().toString(36).substring(2, 15) 
+                      + Math.random().toString(36).substring(2, 15) 
+                      + Math.random().toString(36).substring(2, 15) 
+                      + Math.random().toString(36).substring(2, 15) 
+                      + Math.random().toString(36).substring(2, 15));
   req.session.stateValue = stateValue;
 
   //generate the pkce challenge/verifier dict
-  pkce_pair = pkceChallenge();
+  var pkce_pair = pkceChallenge();
   // Store the PKCE verifier in session
   req.session.verifier = pkce_pair['code_verifier'];
   const challenge = pkce_pair['code_challenge'];
   res.render('index', {user: req.session.user, title: 'FusionAuth Example', clientId: clientId, challenge: challenge, stateValue: stateValue});
+});
+
+router.get('/logout', function (req, res, next) {
+  req.session.destroy()
+  res.redirect(302, '/')
+});
+
+router.post('/register', function(req, res){
+    client.register(null, req.body)
+        .then(function(clientResponse) {
+            res.send(clientResponse);
+        })
+        .catch(function(error) {
+            console.log("ERROR: ", JSON.stringify(error, null, 8))
+            res.send(error);
+        });
 });
 
 /* OAuth return from FusionAuth */
@@ -30,11 +55,11 @@ router.get('/oauth-redirect', function (req, res, next) {
   }
 
   // This code stores the user in a server-side session
- client.exchangeOAuthCodeForAccessTokenUsingPKCE(req.query.code,
-                                                 clientId,
-                                                 clientSecret,
-                                                 'http://localhost:3000/oauth-redirect',
-                                                 req.session.verifier)
+  client.exchangeOAuthCodeForAccessTokenUsingPKCE(req.query.code,
+                                                  clientId,
+                                                  clientSecret,
+                                                  'http://localhost:3000/oauth-redirect',
+                                                  req.session.verifier)
       .then((response) => {
         return client.retrieveUserUsingJWT(response.response.access_token);
       })
